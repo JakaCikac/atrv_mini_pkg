@@ -1,0 +1,10 @@
+<launch>
+
+  <!-- robot communication and control - rflex -->
+  <node pkg="atrv_mini_pkg" type="atrv_mini_node" name="ATRVmini_node" output="screen">
+    <param name="port" value="/dev/ttyUSB0"/>
+  </node>
+  <!-- robot footprint  -->
+  <node pkg="atrv_mini_pkg" type="footprint" name="ATRVmini_footprint" output="screen"/>
+
+</launch>

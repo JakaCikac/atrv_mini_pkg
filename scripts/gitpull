@@ -1,0 +1,6 @@
+cd ROS/src/atrv_mini_pkg/
+git pull origin master
+cd 
+cd ROS/
+catkin_make
+
