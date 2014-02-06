@@ -138,7 +138,11 @@ void ATRVTeleop::publish()
 	//sonar_enable_pressed = false;
 	turbo_enable_pressed = false;
 	turbo_disable_pressed = false;
-	ros::Duration(0.5).sleep();	
+	ros::Duration(0.5).sleep();
+	// Code to disable movement when no button pressed	
+	//vel.angualr.z = 0;
+	//vel.linear.x = 0;
+	//vel_pub_.publish(vel);
   }
 
   /* else if (sonar_enable_pressed) {

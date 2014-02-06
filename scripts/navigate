@@ -1,0 +1,158 @@
+#!/usr/bin/env python
+
+import roslib; roslib.load_manifest('move_base_msgs')
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from actionlib import SimpleActionClient, GoalStatus
+import tf, sys, random, rospy
+from geometry_msgs.msg import PoseStamped
+from copy import deepcopy
+from random import randint
+from std_msgs.msg import Bool, String
+
+# moves the robot to position in poseStamped with targeted frame map
+def move(poseStamped, target_frame="map"):
+    global client
+    goal = MoveBaseGoal()
+    goal.target_pose.header.frame_id = target_frame
+    rospy.loginfo("Creating goal.")
+    goal.target_pose.header.stamp = rospy.get_rostime()
+    goal.target_pose.pose.position.x = poseStamped.pose.position.x
+    goal.target_pose.pose.position.y = poseStamped.pose.position.y
+    goal.target_pose.pose.position.z = 0.0
+    goal.target_pose.pose.orientation.x = poseStamped.pose.orientation.x
+    goal.target_pose.pose.orientation.y = poseStamped.pose.orientation.y
+    goal.target_pose.pose.orientation.z = poseStamped.pose.orientation.z
+    goal.target_pose.pose.orientation.w = poseStamped.pose.orientation.w
+    rospy.loginfo("Sending goal to client.")
+    client.send_goal(goal)
+    rospy.loginfo("Waiting for client result...")
+    client.wait_for_result()
+    rospy.loginfo("Returning client state.")
+    return client.get_state() == GoalStatus.SUCCEEDED
+
+# When the point of detected face is received, transform the point to /map
+# and return position so it can be later sent to move as goal 
+def transformFromCameraToMap(origPoint, offset_x, offset_z, ox, oy, oz, ow):
+    global listener
+    p = deepcopy(origPoint)
+    p.pose.position.x += offset_x
+    p.pose.position.z += offset_z
+    #listener.waitForTransform("/camera_rgb_optical_frame", "/map", rospy.Time.now(), rospy.Duration(10.0))
+    #tp = listener.transformPose("map", p)
+    #tp.pose.orientation.x = ox
+    #tp.pose.orientation.y = oy
+    #tp.pose.orientation.z = oz
+    #tp.pose.orientation.w = ow
+    if tf2.frameExists("/camera_rgb_optical_frame") and tf2.frameExists("/map"):
+        t =tf2.getLatestCommonTime("/camera_rgb_optical_frame", "/map")
+        position, quaternion = tf2.lookupTransform("/camera_rgb_optical_frame", "/map", t)
+        print position, quaternion
+       
+    return position
+    #return tp
+
+#def callback(data):
+#    moves = []
+#    for arg in sys.argv[1:]:
+#        moves.append(transformFromCameraToMap(data, *points[arg]))
+#    while True:
+#        for m in moves:
+#            move(m)
+
+def startedKatanaCallback(data):
+	rospy.loginfo("Started katana operation. Navigation blocked.")
+	global navigationOnline
+	navigationOnline = False
+	
+
+def retractedKatanaCallback(data):
+	rospy.loginfo("Katana retracted, proceed to navigation.")
+	global navigationOnline
+	navigationOnline = True
+	navigate()
+
+def faceDetectedCallback(data):
+	rospy.loginfo("Face detected.")
+
+def moveForward():
+    m = PoseStamped()
+    m.pose.position.x = 2.0
+    m.pose.orientation.w = 1.0
+    m.header.frame_id = "base"
+    rospy.loginfo("Calling move.")
+    move(m, "base")
+
+# generate a random point from start to end-1, excluding currentNumber
+# warning: the number of points should be at least 3
+def generateRandom(currentNumber, end, start = 1):
+    r = range(start, currentNumber) + range(currentNumber+1, end)
+    return random.choice(r)
+
+# randomly select a point excluding the one at which the robot is at
+# then send the point as navigation goal
+def moveToPoints(basePoint, points, currentNumber = 1):
+    randomPointIdx = generateRandom(currentNumber,4)
+    currentNumber = randomPointIdx
+    randomPoint = points[randomPointIdx]
+    rospy.loginfo("Selected point " + str(randomPointIdx))
+    goalPoint = PoseStamped()
+    goalPoint.pose.position.x = randomPoint[0]
+    goalPoint.pose.position.y = randomPoint[1]
+    goalPoint.pose.position.z = 0.0
+    goalPoint.pose.orientation.x = randomPoint[2]
+    goalPoint.pose.orientation.y = randomPoint[3]
+    goalPoint.pose.orientation.z = randomPoint[4]
+    goalPoint.pose.orientation.w = randomPoint[5]
+    goalPoint.header.frame_id = "base"
+    rospy.loginfo("Sending point as goal, calling move.")
+    move(goalPoint, "base")
+
+### Move ATRV to relative points
+# point = (x,y, x,y,z,w) = (position,quaternion)
+# the points should be relative to the basePoint 
+# that the user selects using 2d pose estimate
+def navigate():
+	if navigationOnline:
+		rospy.loginfo("Navigation online, starting..")
+	else:   rospy.loginfo("Navigation offline, stopped.")
+	while navigationOnline:
+		basePoint = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+		points = {
+    			1: ( 0.0, 0.0, 0.0, 0.0, -0.856375438851, 0.516353665362),
+    			2: (-0.5, 0.0, 0.0, 0.0, 0.974899042305, -0.222647383352),
+    			3: (-0.5, 0.3, 0.0, 0.0, 0.969342953931, 0.245711696231),
+    			4: (-0.5, 1.0, 0.0, 0.0, 0.736656280611, 0.676267346718)
+			}
+		rospy.sleep(1)
+		rospy.loginfo("Navigation while loop running.")
+		#moveToPoints(basePoint, points)
+
+
+##### Start node and initialize ######
+rospy.loginfo("Starting node: atrv_navigate...")
+rospy.init_node('atrv_navigate')
+client = SimpleActionClient('move_base', MoveBaseAction)
+rospy.loginfo("Waiting for client action server (start amcl?)...")
+client.wait_for_server()
+rospy.loginfo("Client action server detected.")
+
+##### Subscribers ######
+rospy.loginfo("Generating subscribers...")
+## Subscriber for the katana topic, gives the signal that katana
+#  operation is starting and navigation should be blocked.
+rospy.Subscriber("/katana/started", Bool, startedKatanaCallback)
+## Subscriber for the katana topic, gives the signal that katana
+#  operation has finished and navigation should start again.
+rospy.Subscriber("/katana/retracted", Bool, retractedKatanaCallback)
+## Subscriber for face detection signal, gives the signal to
+#  initialize transformation from camera to map and start navigation.
+rospy.Subscriber("/face_detection/detected", String, faceDetectedCallback)
+
+##### Publishers #######
+rospy.loginfo("Generating publishers...")
+# Controls navigation
+navigationOnline = True
+rospy.loginfo("Starting navigation " + str(navigationOnline))
+navigate()
+tf2 = tf.TransformListener()
+rospy.spin()

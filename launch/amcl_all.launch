@@ -1,7 +1,7 @@
 <launch>
 
   <!--  map to load -->
-  <arg name="map" default="lab_test2.yaml" />
+  <arg name="map" default="lab2.yaml" />
   <!-- start map server -->
   <node name="map_server" pkg="map_server" type="map_server" args="$(find atrv_mini_pkg)/maps/$(arg map)"/>
 
