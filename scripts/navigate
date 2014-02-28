@@ -8,6 +8,11 @@ from geometry_msgs.msg import PoseStamped
 from copy import deepcopy
 from random import randint
 from std_msgs.msg import Bool, String
+from facedetect_vicos.msg import Detection
+import sensor_msgs.msg
+import math
+
+
 
 # moves the robot to position in poseStamped with targeted frame map
 def move(poseStamped, target_frame="map"):
@@ -32,66 +37,103 @@ def move(poseStamped, target_frame="map"):
 
 # When the point of detected face is received, transform the point to /map
 # and return position so it can be later sent to move as goal 
-def transformFromCameraToMap(origPoint, offset_x, offset_z, ox, oy, oz, ow):
-    global listener
-    p = deepcopy(origPoint)
-    p.pose.position.x += offset_x
-    p.pose.position.z += offset_z
-    #listener.waitForTransform("/camera_rgb_optical_frame", "/map", rospy.Time.now(), rospy.Duration(10.0))
-    #tp = listener.transformPose("map", p)
-    #tp.pose.orientation.x = ox
-    #tp.pose.orientation.y = oy
-    #tp.pose.orientation.z = oz
-    #tp.pose.orientation.w = ow
-    if tf2.frameExists("/camera_rgb_optical_frame") and tf2.frameExists("/map"):
-        t =tf2.getLatestCommonTime("/camera_rgb_optical_frame", "/map")
-        position, quaternion = tf2.lookupTransform("/camera_rgb_optical_frame", "/map", t)
-        print position, quaternion
-       
-    return position
-    #return tp
 
-#def callback(data):
-#    moves = []
-#    for arg in sys.argv[1:]:
-#        moves.append(transformFromCameraToMap(data, *points[arg]))
-#    while True:
-#        for m in moves:
-#            move(m)
-
-def startedKatanaCallback(data):
-	rospy.loginfo("Started katana operation. Navigation blocked.")
-	global navigationOnline
-	navigationOnline = False
+#def startedKatanaCallback(data):
+#	rospy.loginfo("Started katana operation. Navigation blocked.")
+#	global navigationOnline
+#	navigationOnline = False
+#	navigate()
 	
-
+## Signal received when Katana completes trajectory.
+#  Navigation should start again.
 def retractedKatanaCallback(data):
-	rospy.loginfo("Katana retracted, proceed to navigation.")
-	global navigationOnline
-	navigationOnline = True
-	navigate()
+	rospy.loginfo("Katana traj done, proceed to sleep.")
+        global end_of_trajectory1
+        end_of_trajectory1 = True
+
+def retracted2KatanaCallback(data):
+        rospy.loginfo("Katana traj2 done, proceed to navi.")
+        global end_of_trajectory2
+        rospy.loginfo("Katana end_of_trajectory2 set to True")
+        end_of_trajectory2 = True
+        global navigationOnline
+        navigationOnline = True
+        enable_face_detect_pub.publish(1)
+        rospy.loginfo("End of second trajectory2.")
+        moveToFacePoint()
+        navigate()
 
 def faceDetectedCallback(data):
 	rospy.loginfo("Face detected.")
 
-def moveForward():
+            
+def faceLocationCallback(data):
+       rospy.loginfo("Face coordinates recieved.")
+       global navigationOnline
+       navigationOnline = False
+       rospy.loginfo("Navigation offline, stopped.")
+       centerFace = int(data.x) + int(data.w/2)
+       print "Center face: " + str(centerFace)
+       global ranges
+       justMoveKatana = False
+       #print len(ranges)
+       #print int(len(ranges)/2)
+       
+       if centerFace > 480/2:
+	 offset = int(len(ranges)/2) + (int(480/2) - centerFace)
+	 #print offset
+	 # take range at offset
+	 moveForward = ranges[offset] - 0.7
+	 if (moveForward < 0.7) or (math.isnan(moveForward)):
+	   justMoveKatana = True
+	 print moveForward
+       else: 
+         offset = int(len(ranges)/2) - (int(480/2) - centerFace)
+         #print offset
+         moveForward = ranges[offset] - 0.7
+         if (moveForward < 0.7) or (math.isnan(moveForward)):
+	   justMoveKatana = True
+         print moveForward
+         
+       m = PoseStamped()
+       m.pose.position.x = moveForward 
+       m.pose.orientation.w = 1.0
+       m.header.frame_id = "base"
+       rospy.loginfo("Calling move.")
+       #moveToFacePoint()
+       if justMoveKatana:
+	  rospy.loginfo("Just moving katana arm.")
+          navigationOnline = False
+	  moveKatanaArm()
+       else:
+	  rospy.loginfo("Calling move base when detected face.")
+	  move(m, "base")
+          moveKatanaArm()
+       
+def laserDetectionCallBack(scan):
+      #rospy.loginfo("laser input detected")
+      laserScan = scan
+      global ranges
+      ranges = laserScan.ranges
+
+def moveToFacePoint():
     m = PoseStamped()
-    m.pose.position.x = 2.0
+    m.pose.position.x = -0.35
     m.pose.orientation.w = 1.0
-    m.header.frame_id = "base"
+    m.header.frame_id = "map" #was bae but tests if id and target musn't be same
     rospy.loginfo("Calling move.")
     move(m, "base")
 
-# generate a random point from start to end-1, excluding currentNumber
-# warning: the number of points should be at least 3
+## Generate a random point from start to end-1, excluding currentNumber.
+#  warning: the number of points should be at least 3
 def generateRandom(currentNumber, end, start = 1):
     r = range(start, currentNumber) + range(currentNumber+1, end)
     return random.choice(r)
 
-# randomly select a point excluding the one at which the robot is at
-# then send the point as navigation goal
+## Randomly select a point excluding the one at which the robot is at
+#  then send the point as navigation goal.
 def moveToPoints(basePoint, points, currentNumber = 1):
-    randomPointIdx = generateRandom(currentNumber,4)
+    randomPointIdx = generateRandom(currentNumber,6)
     currentNumber = randomPointIdx
     randomPoint = points[randomPointIdx]
     rospy.loginfo("Selected point " + str(randomPointIdx))
@@ -105,27 +147,69 @@ def moveToPoints(basePoint, points, currentNumber = 1):
     goalPoint.pose.orientation.w = randomPoint[5]
     goalPoint.header.frame_id = "base"
     rospy.loginfo("Sending point as goal, calling move.")
-    move(goalPoint, "base")
+    move(goalPoint, "map")
 
+    
+def moveKatanaArm():
+	# when face point reached on map, broadcast start trajectory
+	global navigationOnline
+        global end_of_trajectory1
+        global end_of_trajectory2
+	navigationOnline = False
+	rospy.loginfo("Navigation offline, stopped.")
+        rospy.loginfo("Publishing start of first trajectory.")
+	start_trajectory_pub.publish(1)
+        counterLoop1 = 0
+        while (not end_of_trajectory1) and (counterLoop1 < 10): 
+            # wait for trajectory1 to complete
+            rospy.sleep(1.0)
+            counterLoop1 +=1
+            print str(counterLoop1) + " loop 1" 
+            #rospy.loginfo("Still waiting for end of trajectory1..")
+        end_of_trajectory1 = False
+        rospy.loginfo("Sleeping for 4 seconds")
+	# sleep for 8 secs
+        rospy.sleep(4.0)
+        rospy.loginfo("End of sleep.")
+        rospy.loginfo("Publishing second trajectory.")
+	# call second retraction trajectory
+	start_trajectory2_pub.publish(1)
+	counterLoop = 0
+        while (not end_of_trajectory2) and (counterLoop < 10):
+            #wait for second trajectory to complete
+            rospy.sleep(1.0)
+            counterLoop += 1
+            print str(counterLoop) + " loop 2"
+        rospy.loginfo("Outside of loop for second trajectory")
+        enable_face_detect_pub.publish(1)
+            #rospy.loginfo("Still waiting for end of trajectory2..")
+        global navigationOnline
+        navigationOnline = True
+        #navigate()
 ### Move ATRV to relative points
 # point = (x,y, x,y,z,w) = (position,quaternion)
 # the points should be relative to the basePoint 
 # that the user selects using 2d pose estimate
 def navigate():
+        global end_of_trajectory2
+        end_of_trajectory2 = False
 	if navigationOnline:
 		rospy.loginfo("Navigation online, starting..")
 	else:   rospy.loginfo("Navigation offline, stopped.")
 	while navigationOnline:
-		basePoint = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+		basePoint = (-0.422, 0.875, -0.980, 0.0, 0.0, 0.0)
 		points = {
     			1: ( 0.0, 0.0, 0.0, 0.0, -0.856375438851, 0.516353665362),
-    			2: (-0.5, 0.0, 0.0, 0.0, 0.974899042305, -0.222647383352),
-    			3: (-0.5, 0.3, 0.0, 0.0, 0.969342953931, 0.245711696231),
-    			4: (-0.5, 1.0, 0.0, 0.0, 0.736656280611, 0.676267346718)
+    			2: (-0.549, 0.586, 0.000, 0.000, 0.000, 0.782, 0.522),
+    			3: (0.128, 0.176, 0.000, 0.000, 0.000, 0.756, 0.655),
+    			4: (0.212, 0.438, 0.0, 0.0, 0.858, 0.514),
+                        5: (1.529, 0.933, 0.0, 0.0, 0.883, 0.469),
+                        6: (2.064, 0.485, 0.0, 0.0, 0.129, 0.992)
 			}
-		rospy.sleep(1)
+		rospy.sleep(2)
 		rospy.loginfo("Navigation while loop running.")
-		#moveToPoints(basePoint, points)
+		moveToPoints(basePoint, points)
+		#moveKatanaArm()
 
 
 ##### Start node and initialize ######
@@ -140,18 +224,41 @@ rospy.loginfo("Client action server detected.")
 rospy.loginfo("Generating subscribers...")
 ## Subscriber for the katana topic, gives the signal that katana
 #  operation is starting and navigation should be blocked.
-rospy.Subscriber("/katana/started", Bool, startedKatanaCallback)
+#rospy.Subscriber("/katana/started", Bool, startedKatanaCallback)
+
 ## Subscriber for the katana topic, gives the signal that katana
 #  operation has finished and navigation should start again.
 rospy.Subscriber("/katana/retracted", Bool, retractedKatanaCallback)
+rospy.Subscriber("/katana/retracted2", Bool, retracted2KatanaCallback)
 ## Subscriber for face detection signal, gives the signal to
 #  initialize transformation from camera to map and start navigation.
-rospy.Subscriber("/face_detection/detected", String, faceDetectedCallback)
+rospy.Subscriber("/face_detection/detected", Bool, faceDetectedCallback)
+##
+#
+rospy.Subscriber("/face_detection/location", Detection, faceLocationCallback)
+##
+#
+laser_sub = rospy.Subscriber("/scan", sensor_msgs.msg.LaserScan, laserDetectionCallBack)
+
 
 ##### Publishers #######
 rospy.loginfo("Generating publishers...")
+start_trajectory_pub = rospy.Publisher("/katana/start_trajectory", Bool)
+start_trajectory2_pub = rospy.Publisher("/katana/start_trajectory2", Bool)
+enable_face_detect_pub = rospy.Publisher("/face_detection/start", Bool)
+enable_face_detect_pub.publish(1)
+disable_face_detect_pub = rospy.Publisher("/face_detection/stop", Bool)
+
+
+##### Global variables ######
 # Controls navigation
 navigationOnline = True
+end_of_trajectory1 = False
+end_of_trajectory2 = False
+rospy.loginfo("Starting face detection.")
+enable_face_detect_pub.publish(1)
+
+#### Start the whole thing ####
 rospy.loginfo("Starting navigation " + str(navigationOnline))
 navigate()
 tf2 = tf.TransformListener()

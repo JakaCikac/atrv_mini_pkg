@@ -46,9 +46,9 @@ public:
   ATRVTeleop();
   double l_scale_, a_scale_;
   bool deadman_pressed_, down_speed_pressed, up_speed_pressed, brake_enable_pressed, brake_disable_pressed, blind_button_pressed;
-  //bool sonar_enable_pressed, sonar_disable_pressed;
-  bool turbo_enable_pressed, turbo_disable_pressed;
-  bool turbo_disabled;
+  bool sonar_enable_pressed, sonar_disable_pressed;
+  //bool turbo_enable_pressed, turbo_disable_pressed;
+  //bool turbo_disabled;
 
 private:
   void joyCallback(const sensor_msgs::Joy::ConstPtr& joy);
@@ -57,8 +57,8 @@ private:
   ros::NodeHandle ph_, nh_;
 
   int linear_, angular_, deadman_axis_, up_speed, down_speed, brake_enable, brake_disable, blind_button;
-  //int sonar_enable, sonar_disable;
-  int turbo_enable, turbo_disable;
+  int sonar_enable, sonar_disable;
+  //int turbo_enable, turbo_disable;
 
   // joystick velocity publisher / subscriber
   ros::Publisher vel_pub_;
@@ -66,7 +66,8 @@ private:
   // brake enable/disable
   ros::Publisher brake_pub;
   // sonar enable / disable
-  //ros::Publisher sonar_pub;
+  ros::Publisher sonar_pub;
+  ros::Publisher sonar_pub2;
   
   geometry_msgs::Twist last_published_;
   // brake/sonar control
@@ -87,10 +88,10 @@ ATRVTeleop::ATRVTeleop():
   brake_enable(8),
   brake_disable(9),
   blind_button(6),
-  //sonar_enable(0),
-  //sonar_disable(1),
-  turbo_enable(0),
-  turbo_disable(1),
+  sonar_enable(0),
+  sonar_disable(1),
+  //turbo_enable(0),
+  //turbo_disable(1),
   l_scale_(0.5),
   a_scale_(0.9) //Auto joystick scale
 {
@@ -103,9 +104,10 @@ ATRVTeleop::ATRVTeleop():
   vel_pub_ = ph_.advertise<geometry_msgs::Twist>("cmd_vel", 1);
   joy_sub_ = nh_.subscribe<sensor_msgs::Joy>("joy", 10, &ATRVTeleop::joyCallback, this); //10
   brake_pub = ph_.advertise<std_msgs::Bool>("/ATRVmini_node/cmd_brake_power", 1);
-  //sonar_pub = ph_.advertise<std_msgs::Bool>("/ATRVmini_node/cmd_sonar_power", 1);
+  sonar_pub = ph_.advertise<std_msgs::Bool>("/katana/start_trajectory", 1);
+  sonar_pub2 = ph_.advertise<std_msgs::Bool>("/katana/start_trajectory2", 1);
   timer_ = nh_.createTimer(ros::Duration(0.1), boost::bind(&ATRVTeleop::publish, this));
-  turbo_disabled = true;
+  //turbo_disabled = true;
 }
 
 void ATRVTeleop::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
@@ -120,10 +122,10 @@ void ATRVTeleop::joyCallback(const sensor_msgs::Joy::ConstPtr& joy)
   brake_enable_pressed = joy->buttons[brake_enable];
   brake_disable_pressed = joy->buttons[brake_disable];
   blind_button_pressed = joy->buttons[blind_button];
-  //sonar_enable_pressed = joy->buttons[sonar_enable];
-  //sonar_disable_pressed = joy->buttons[sonar_disable];
-  turbo_enable_pressed = joy->buttons[turbo_enable];
-  turbo_disable_pressed = joy->buttons[turbo_disable];
+  sonar_enable_pressed = joy->buttons[sonar_enable];
+  sonar_disable_pressed = joy->buttons[sonar_disable];
+  //turbo_enable_pressed = joy->buttons[turbo_enable];
+  //turbo_disable_pressed = joy->buttons[turbo_disable];
 }
 
 void ATRVTeleop::publish()
@@ -134,10 +136,10 @@ void ATRVTeleop::publish()
 	brake_enable_pressed = false;
 	brake_disable_pressed = false;
 	deadman_pressed_ = false;
-	//sonar_disable_pressed = false;
-	//sonar_enable_pressed = false;
-	turbo_enable_pressed = false;
-	turbo_disable_pressed = false;
+	sonar_disable_pressed = false;
+	sonar_enable_pressed = false;
+	//turbo_enable_pressed = false;
+	//turbo_disable_pressed = false;
 	ros::Duration(0.5).sleep();
 	// Code to disable movement when no button pressed	
 	//vel.angualr.z = 0;
@@ -145,19 +147,21 @@ void ATRVTeleop::publish()
 	//vel_pub_.publish(vel);
   }
 
-  /* else if (sonar_enable_pressed) {
+   else if (!deadman_pressed_ && !sonar_disable_pressed && sonar_enable_pressed) {
 	enable.data = true;
+        ROS_WARN("Publishing 1 to katana trajectory 1.");
 	sonar_pub.publish(enable);
-	ROS_WARN("Sonars enabled!");
+	ROS_WARN("Starting katana trajectory 1");
 	ros::Duration(0.5).sleep();
 	}
 	
-  else if (sonar_disable_pressed) {
-	enable.data = false;
-	sonar_pub.publish(enable);
-	ROS_WARN("Sonars disabled!");
+  else if (!deadman_pressed_ && !sonar_enable_pressed && sonar_disable_pressed) {
+	enable.data = true;
+        ROS_WARN("Publishing 1 to katana trajectory 2.");
+	sonar_pub2.publish(enable);
+	ROS_WARN("Starting katana trajectory 2");
 	ros::Duration(0.5).sleep();
-	} */
+	} 
 
   else if (brake_enable_pressed) {
 	enable.data = true;
@@ -177,7 +181,7 @@ void ATRVTeleop::publish()
 	
   else if (deadman_pressed_)
   {
-	if(up_speed_pressed && a_scale_ < 1.21 && l_scale_ < 1.21 && turbo_disabled) {
+	if(up_speed_pressed && a_scale_ < 1.21 && l_scale_ < 1.21){// && turbo_disabled) {
 		if((a_scale_ > 1.20) || (l_scale_ > 1.20)) {
 			ROS_INFO("Can not further increase speed, currently at MAXIMUM.");
 		} else {
@@ -187,7 +191,7 @@ void ATRVTeleop::publish()
 		ros::Duration(0.1).sleep();
 		}
 	}
-	else if(down_speed_pressed && a_scale_ > 0.01 && l_scale_ > 0.01 && turbo_disabled) {
+	else if(down_speed_pressed && a_scale_ > 0.01 && l_scale_ > 0.01){// && turbo_disabled) {
 		if((a_scale_ < 0.021) || (l_scale_ < 0.021)) {
 			ROS_INFO("Can not further lower speed, currently at MINIMUM.");
 		} else {
@@ -197,7 +201,7 @@ void ATRVTeleop::publish()
 		ros::Duration(0.1).sleep();
 		}
 	}
-	else if (turbo_enable_pressed) {
+	/*else if (turbo_enable_pressed) {
 		turbo_disabled = false;
 		a_scale_ = 1.5;
 		l_scale_ = 1.3;
@@ -214,8 +218,14 @@ void ATRVTeleop::publish()
 		ROS_WARN("Turbo mode offline.");
 		ROS_INFO("Speed decreased! Ang: %.2f Lin: %.2f", a_scale_, l_scale_ );
 		ros::Duration(0.5).sleep();	
+	} */
+	else
+	if(sonar_enable_pressed && sonar_disable_pressed) {
+	ROS_INFO("Kill time");
+		//system("killall amcl");
+	system("killall move_base");
 	}
-	else if(up_speed_pressed && a_scale_ < 6 && l_scale_ < 6 && !turbo_disabled) {
+        else if(up_speed_pressed && a_scale_ < 6 && l_scale_ < 6){// && !turbo_disabled) {
 		if((a_scale_ > 5.99) || (l_scale_ > 5.99)) {
 			ROS_INFO("Can not further increase speed, won't have effect.");
 		} else {
@@ -225,7 +235,7 @@ void ATRVTeleop::publish()
 		ros::Duration(0.1).sleep();
 		}
 	}
-	else if(down_speed_pressed && a_scale_ > 0.01 && l_scale_ > 0.01 && !turbo_disabled) {
+	else if(down_speed_pressed && a_scale_ > 0.01 && l_scale_ > 0.01){// && !turbo_disabled) {
 		if((a_scale_ < 0.021) || (l_scale_ < 0.021)) {
 			ROS_INFO("Can not further lower speed, currently at MINIMUM.");
 		} else {
