@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
 <package>
   <name>atrv_mini_pkg</name>
-  <version>0.0.1</version>
+  <version>0.0.2</version>
   <description>The atrv_mini_pkg package puts ROS on the iRobot ATRV mini robot. </description>
 
   <maintainer email="luka.cehovin@fri.uni-lj.si">Luka Čehovin</maintainer>
+  <maintainer email="jaka.cikac@gmail.com">Jaka Cikač</maintainer>
   <license>BSD</license>
   <url type="website">https://trac.vicos.si/ros</url>
   <buildtool_depend>catkin</buildtool_depend>
