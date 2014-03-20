@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package>
-  <name>atrv_mini_pkg</name>
+  <name>atrv_mini_ros</name>
   <version>0.0.2</version>
-  <description>The atrv_mini_pkg package puts ROS on the iRobot ATRV mini robot. </description>
+  <description>The atrv_mini_ros package puts ROS on the iRobot ATRV Mini robot. </description>
 
   <maintainer email="luka.cehovin@fri.uni-lj.si">Luka Čehovin</maintainer>
   <maintainer email="jaka.cikac@gmail.com">Jaka Cikač</maintainer>

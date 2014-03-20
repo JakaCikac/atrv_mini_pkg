@@ -1,6 +1,6 @@
 <launch>
   <!--- launch the transform for kinect sensor on the ATRV Mini -->
-  <include file="$(find atrv_mini_pkg)/launch/include/kinect_tf.launch" />
+  <include file="$(find atrv_mini_ros)/launch/include/kinect_tf.launch" />
 
   <arg name="camera"  value="camera"/>
   <arg name="respawn" default="false" />
@@ -21,7 +21,7 @@
   <group ns="$(arg camera)">
     <node pkg="nodelet" type="nodelet" name="$(arg manager)" respawn="true" args="manager"/>
     <node pkg="nodelet" type="nodelet" name="openni_camera_loader" args="load openni_camera/driver $(arg manager)" respawn="true">
-        <rosparam file="$(find atrv_mini_pkg)/launch/param/asus.yaml" command="load"/>
+        <rosparam file="$(find atrv_mini_ros)/launch/param/asus.yaml" command="load"/>
         <param name="depth_registration" value="$(arg depth_registration)"/>
     </node>
 

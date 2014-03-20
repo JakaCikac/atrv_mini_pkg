@@ -40,7 +40,7 @@ void ATRVSound::helloWorld()
 {
   sound_play::SoundClient sc;
   sleepok(1, nh);
-  sc.playWave("/home/atrv/ROS/src/atrv_mini_pkg/sounds/alive.wav");
+  sc.playWave("/home/atrv/ROS/src/atrv_mini_ros/sounds/alive.wav");
   sleepok(2, nh);
 }
  

@@ -1,6 +1,6 @@
 <launch>
 
-  <include file="$(find atrv_mini_pkg)/launch/3dsensor.launch">
+  <include file="$(find atrv_mini_ros)/launch/3dsensor.launch">
     <arg name="rgb_processing" value="true" />
     <arg name="depth_registration" value="false" />
     <arg name="depth_processing" value="false" />
@@ -46,7 +46,7 @@
   </node>
 
   <!--- start rviz -->
-  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find atrv_mini_pkg)/rviz/gmapping_rvz.rviz"/>
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find atrv_mini_ros)/rviz/gmapping_rvz.rviz"/>
 
    <!-- start rgb camera -->
   <node pkg="image_view" type="image_view" name="image_view" output="screen">
