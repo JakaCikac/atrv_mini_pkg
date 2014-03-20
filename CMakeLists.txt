@@ -22,6 +22,9 @@ target_link_libraries(atrv_mini_node ${catkin_LIBRARIES} atrv_mini_driver rflex_
 #target_link_libraries(tf_broadcaster ${catkin_LIBRARIES})
 #target_link_libraries(tf_listener ${catkin_LIBRARIES})
 
+add_executable(atrv_mini_sound src/ATRVmini_sound.cc)
+target_link_libraries(atrv_mini_sound ${catkin_LIBRARIES})
+
 add_executable(atrv_mini_joy src/ATRVmini_joy)
 target_link_libraries(atrv_mini_joy ${catkin_LIBRARIES})
 

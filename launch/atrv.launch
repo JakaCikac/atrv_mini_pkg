@@ -1,5 +1,8 @@
 <launch>
 
+  <!-- robot sound support  -->
+  <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py" output="screen"/>
+  
   <!-- robot communication and control - rflex -->
   <node pkg="atrv_mini_pkg" type="atrv_mini_node" name="ATRVmini_node" output="screen">
     <param name="port" value="/dev/ttyUSB0"/>
@@ -17,5 +20,8 @@
     <param name="scale_linear" value="0.2"/>
     <remap from="ATRVmini_joy/cmd_vel" to="/ATRVmini_node/cmd_vel"/>
   </node>
+  
+  <!-- robot sound -->
+  <node pkg="atrv_mini_pkg" type="atrv_mini_sound" name="ATRVmini_sound" output="screen"/>
 
 </launch>
