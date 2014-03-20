@@ -1,0 +1,36 @@
+<launch>
+
+  <!--  map to load -->
+<<<<<<< HEAD
+  <arg name="map" default="lab_test1.yaml" />
+  <!-- start map server -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find atrv_mini_pkg)/maps/$(arg map)"/>
+
+  <!-- start rgb camera 
+  <node pkg="image_view" type="image_view" name="image_view" output="screen">
+     <remap from="/image" to="/camera/rgb/image_raw"/>
+  </node> -->
+=======
+  <arg name="map" default="hodnik.yaml" />
+  <!-- start map server -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find atrv_mini_pkg)/maps/$(arg map)"/>
+
+  <!-- start rgb camera -->
+  <node pkg="image_view" type="image_view" name="image_view" output="screen">
+     <remap from="/image" to="/camera/rgb/image_raw"/>
+  </node>
+>>>>>>> vicos/master
+
+  <!-- start amcl -->
+  <include file="$(find atrv_mini_pkg)/launch/amcl.launch" />
+
+<<<<<<< HEAD
+  <!--- start rviz
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find atrv_mini_pkg)/rviz/navigation.rviz"/>
+   -->
+=======
+  <!--- start rviz -->
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find atrv_mini_pkg)/rviz/navigation.rviz"/>
+>>>>>>> vicos/master
+
+</launch>
